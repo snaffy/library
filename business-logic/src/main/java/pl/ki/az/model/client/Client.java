@@ -6,9 +6,23 @@ public class Client {
     private String name;
     private String surname;
 
-    public Client(UserId userId, String name, String surname) {
+    public Client(UserId userId) {
         this.userId = userId;
-        this.name = name;
-        this.surname = surname;
+
+    }
+
+    @Override
+    public int hashCode() {
+        return userId != null ? userId.hashCode() : 0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Client)) return false;
+
+        Client client = (Client) o;
+
+        return userId != null ? userId.equals(client.userId) : client.userId == null;
     }
 }

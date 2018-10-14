@@ -21,10 +21,15 @@ public class RentResult {
         return new RentResult(false, Result.BOOK_NOT_EXIST);
     }
 
-
-    private enum Result {
+    public enum Result {
         SUCCEES, BOOK_NOT_AVAILABLE, BOOK_NOT_EXIST
     }
 
+    public boolean isValid() {
+        return isValid;
+    }
 
+    public Result getResult() {
+        return result;
+    }
 }

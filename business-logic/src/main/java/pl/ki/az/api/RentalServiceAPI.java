@@ -41,7 +41,7 @@ public class RentalServiceAPI implements RentalSerivce {
             return RentResult.bookNotExist();
         }
 
-        if (!book.isAvailabe()) {
+        if (!book.isAvailable()) {
             return RentResult.bookIsNotAvailable();
         }
 
