@@ -13,10 +13,8 @@ import pl.ki.az.rent.RentResult;
 import pl.ki.az.rent.UserRental;
 import pl.ki.az.rent.UserRentalFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -27,16 +25,16 @@ class BookRentTest {
     private UserRentalFactory userRentalFactory;
     private RentalSerivce rentalSerivce;
     private MockRentalRepository mockRentalRepository;
-    private Map<UserId, BookId> rentOrders = new HashMap<>();
-    private Map<UserId, RentResult> rentResults = new HashMap<>();
+    private RentOrders rentOrders;
 
     @BeforeEach
-    private void setUp() {
+    public void setUp() {
         this.clientRepository = new MockClientRepository();
         this.bookRepository = new MockBookRepository();
         this.userRentalFactory = new UserRentalFactory();
         this.mockRentalRepository = new MockRentalRepository();
-        this.rentalSerivce = new RentalServiceAPI(mockRentalRepository,bookRepository,userRentalFactory);
+        this.rentalSerivce = new RentalServiceAPI(mockRentalRepository, bookRepository, userRentalFactory);
+        this.rentOrders = new RentOrders();
     }
 
     @Test
@@ -105,52 +103,101 @@ class BookRentTest {
                 .notRentedBookWithId(1L);
     }
 
-//    @Test
-//    @DisplayName("two clients rent the same book")
-//    void testCase4() {
-//        //given
-//        inSystemExistBooks().withId(1L).create();
-//        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
-//        client().withId(2L).wouldLikeToRentABookWithId(1L).create();
-//        //when
-//        rentBook();
-//
-//        //then
-//        rentResult().clientWithId(1L)
-//                .successfullyRentedBookWithId().withId();
-//        rentResult().clientWithId(2L)
-//                .successfullyRentedBookWithId().withId();
-//    }
 
+    @Test
+    @DisplayName("two clients rent the same book")
+    void testCase5() {
+        //given
+        inSystemExistBooks().withId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(2L).wouldLikeToRentABookWithId(1L).create();
+        //when
+        rentBook();
 
-    private RentResultAssembler rentResult(){
-        return new RentResultAssembler();
+        //then
+        rentResult().clientWithId(1L)
+                .successfullyRentedBookWithId(1L);
+        rentResult().clientWithId(2L)
+                .notRentedBookWithId(1L)
+                .becauseBookIsNotAvailable();
     }
 
-    private void rentBook() {
-        rentOrders.forEach((userId, bookId) -> {
-            final RentResult rentResult = rentalSerivce.rentBook(userId, bookId);
-            rentResults.put(userId,rentResult);
-        });
+    @Test
+    @DisplayName("clients rents a book that he has already rented")
+    void testCase6() {
+        //given
+        inSystemExistBooks().withId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        //when
+        rentBook();
+
+        //then
+        rentResult().clientWithId(1L).rentedOnlyOneBook();
     }
 
-    private ExistingBookAssembler inSystemExistBooks(){
-        return new ExistingBookAssembler();
+    private class RentOrder{
+        private UserId userId;
+        private BookId bookId;
+        private RentResult rentResult;
+
+        RentOrder(UserId userId, BookId bookId) {
+            this.userId = userId;
+            this.bookId = bookId;
+        }
+
+        void executeRentBook(){
+            this.rentResult = rentalSerivce.rentBook(this.userId, this.bookId);
+        }
+
+        UserId getUserId() {
+            return userId;
+        }
+
+        RentResult getRentResult() {
+            return rentResult;
+        }
     }
 
-    private BookRentAssembler client() {
-        return new BookRentAssembler();
+    private class RentOrders {
+        private List<RentOrder> rentOrders = new ArrayList<>();
+
+        void addRentOrder(RentOrder rentOrder) {
+            this.rentOrders.add(rentOrder);
+        }
+
+        void executeRentForAllRentOrders() {
+            rentOrders.forEach(RentOrder::executeRentBook);
+        }
+
+        RentResult getRentResultForUserId(UserId userId) {
+           return rentOrders.stream()
+                    .filter(rentOrder -> rentOrder.getUserId().equals(userId))
+                    .findFirst()
+                    .get()
+                    .getRentResult();
+        }
+
+        ArrayList<RentResult> getAllRentResultForUserIdInOrderFromOldestToNewest(UserId userId){
+           return rentOrders.stream()
+                    .filter(rentOrder -> rentOrder.getUserId().equals(userId))
+                    .collect(Collectors.toList())
+                    .stream()
+                    .map(RentOrder::getRentResult)
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
     }
 
-    private class ExistingBookAssembler{
+    private class ExistingBookAssembler {
 
-        private List<Book> books = new ArrayList<>();
+        private List<Book> books = new LinkedList<>();
 
         private ExistingBookAssembler withId(Long bookId) {
             books.add(new Book(new BookId(bookId)));
             return this;
         }
-        void create(){
+
+        void create() {
             bookRepository.addBooks(books);
         }
 
@@ -176,17 +223,16 @@ class BookRentTest {
             final UserRental userRental = userRentalFactory.create(client);
 
             mockRentalRepository.save(userRental);
-            rentOrders.put(userId, bookId);
+            rentOrders.addRentOrder(new RentOrder(userId,bookId));
         }
 
     }
 
-    private class RentResultAssembler{
+    private class RentResultAssembler {
         private UserId client;
 
-
         private RentResultAssembler clientWithId(Long userId) {
-            this.client =  new UserId(userId);
+            this.client = new UserId(userId);
             return this;
         }
 
@@ -197,8 +243,8 @@ class BookRentTest {
             return this;
         }
 
-        RentResultAssembler successfullyRentedBookWithId(long bookId){
-            RentResult rentResult = rentResults.get(client);
+        RentResultAssembler successfullyRentedBookWithId(long bookId) {
+            RentResult rentResult = rentOrders.getRentResultForUserId(client);
             assertThat(rentResult.isValid(), is(true));
 
             Book rentedBook = bookRepository.findBookById(new BookId(bookId));
@@ -206,23 +252,61 @@ class BookRentTest {
             return this;
         }
 
-        RentResultAssembler notSuccessfullyRentedBook(){
-            RentResult rentResult = rentResults.get(client);
+        RentResultAssembler notSuccessfullyRentedBook() {
+            RentResult rentResult = rentOrders.getRentResultForUserId(client);
             assertThat(rentResult.isValid(), is(false));
             return this;
         }
 
-        RentResultAssembler becauseBookNotExistInSystem(){
-            RentResult rentResult = rentResults.get(client);
+        RentResultAssembler becauseBookNotExistInSystem() {
+            RentResult rentResult = rentOrders.getRentResultForUserId(client);
             assertThat(rentResult.getResult(), is(RentResult.Result.BOOK_NOT_EXIST));
             return this;
         }
 
-        RentResultAssembler becauseBookIsNotAvailable(){
-            RentResult rentResult = rentResults.get(client);
+        RentResultAssembler becauseBookIsNotAvailable() {
+            RentResult rentResult = rentOrders.getRentResultForUserId(client);
             assertThat(rentResult.getResult(), is(RentResult.Result.BOOK_NOT_AVAILABLE));
             return this;
         }
+
+        void rentedOnlyOneBook(){
+            ArrayList<RentResult> rentResults = rentOrders.getAllRentResultForUserIdInOrderFromOldestToNewest(client);
+            RentResult firstRentRequest = rentResults.get(0);
+            RentResult secondRentRequest = rentResults.get(1);
+            assertThat(firstRentRequest.isValid(), is(true));
+            assertThat(firstRentRequest.getResult(), is(RentResult.Result.SUCCEES));
+            assertThat(secondRentRequest.isValid(), is(false));
+            assertThat(secondRentRequest.getResult(), is(RentResult.Result.BOOK_NOT_AVAILABLE));
+        }
+    }
+
+
+    private RentResultAssembler firstRentResult() {
+       return rentResult();
+    }
+
+    private RentResultAssembler secondRentResult() {
+        return rentResult();
+    }
+
+    private RentResultAssembler rentResult() {
+        return new RentResultAssembler();
+    }
+
+    private BookRentAssembler client() {
+        return new BookRentAssembler();
+    }
+
+    private void rentBook() {
+        rentOrders.executeRentForAllRentOrders();
+    }
+
+    private ExistingBookAssembler inSystemExistBooks() {
+        return new ExistingBookAssembler();
     }
 
 }
+
+
+
