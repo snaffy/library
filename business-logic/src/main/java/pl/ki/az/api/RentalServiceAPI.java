@@ -2,13 +2,16 @@ package pl.ki.az.api;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import pl.ki.az.domainaggregates.ReturnResult;
+import pl.ki.az.exceptions.BookNotExist;
+import pl.ki.az.exceptions.UserRentalNotExist;
 import pl.ki.az.model.book.Book;
 import pl.ki.az.model.book.BookId;
 import pl.ki.az.model.client.Client;
 import pl.ki.az.model.client.UserId;
-import pl.ki.az.rent.RentResult;
-import pl.ki.az.rent.UserRental;
-import pl.ki.az.rent.UserRentalFactory;
+import pl.ki.az.domainaggregates.RentResult;
+import pl.ki.az.domainaggregates.UserRental;
+import pl.ki.az.domainaggregates.UserRentalFactory;
 import pl.ki.az.repository.BookRepository;
 import pl.ki.az.repository.RentalRepository;
 
@@ -35,20 +38,34 @@ public class RentalServiceAPI implements RentalSerivce {
     public RentResult rentBook(UserId userID, BookId bookId) {
         UserRental usersRent = rentalRepository.loadUsersRent(userID);
 
+        if(usersRent == null)
+            throw new UserRentalNotExist();
+
         Book book = bookRepository.findBookById(bookId);
 
         if (book == null) {
             return RentResult.bookNotExist();
         }
 
-        if (!book.isAvailable()) {
-            return RentResult.bookIsNotAvailable();
-        }
-
-        usersRent.rentBook(book);
+        final RentResult rentResult = usersRent.rentBook(book);
         rentalRepository.save(usersRent);
 
-        return RentResult.successfullyRentedBook();
+        return rentResult;
+    }
+
+    @Override
+    public ReturnResult returnBook(BookId bookId) {
+        UserRental usersRent = rentalRepository.loadUsersRentByRentedBook(bookId);
+
+        if(usersRent == null)
+            throw new UserRentalNotExist();
+
+        Book book = bookRepository.findBookById(bookId);
+
+        if(book == null)
+            throw new BookNotExist();
+
+        return usersRent.returnBook(book);
     }
 
 

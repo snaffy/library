@@ -1,4 +1,4 @@
-package pl.ki.az.rent;
+package pl.ki.az.domainaggregates;
 
 import pl.ki.az.model.client.Client;
 

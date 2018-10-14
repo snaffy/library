@@ -1,4 +1,4 @@
-package pl.ki.az.rent;
+package pl.ki.az.domainaggregates;
 
 public class RentResult {
     private boolean isValid;

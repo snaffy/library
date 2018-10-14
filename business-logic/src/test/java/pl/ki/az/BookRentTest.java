@@ -5,13 +5,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import pl.ki.az.api.RentalSerivce;
 import pl.ki.az.api.RentalServiceAPI;
+import pl.ki.az.domainaggregates.ReturnResult;
 import pl.ki.az.model.book.Book;
 import pl.ki.az.model.book.BookId;
 import pl.ki.az.model.client.Client;
 import pl.ki.az.model.client.UserId;
-import pl.ki.az.rent.RentResult;
-import pl.ki.az.rent.UserRental;
-import pl.ki.az.rent.UserRentalFactory;
+import pl.ki.az.domainaggregates.RentResult;
+import pl.ki.az.domainaggregates.UserRental;
+import pl.ki.az.domainaggregates.UserRentalFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,26 +27,30 @@ class BookRentTest {
     private RentalSerivce rentalSerivce;
     private MockRentalRepository mockRentalRepository;
     private RentOrders rentOrders;
+    private ReturnOrders returnOrders;
 
     @BeforeEach
-    public void setUp() {
+    private void setUp() {
         this.clientRepository = new MockClientRepository();
         this.bookRepository = new MockBookRepository();
         this.userRentalFactory = new UserRentalFactory();
         this.mockRentalRepository = new MockRentalRepository();
         this.rentalSerivce = new RentalServiceAPI(mockRentalRepository, bookRepository, userRentalFactory);
         this.rentOrders = new RentOrders();
+        this.returnOrders = new ReturnOrders();
     }
+
+    //TODO dopisać testy kiedy userid nie istnieje w systemie
 
     @Test
     @DisplayName("rent an available book")
-    void testCase1() {
+    void restTestCase1() {
         //given
         inSystemExistBooks().withId(1L).withId(2L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
 
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L).successfullyRentedBookWithId(1L);
@@ -53,13 +58,13 @@ class BookRentTest {
 
     @Test
     @DisplayName("rent a book that does not exist")
-    void testCase2() {
+    void restTestCase2() {
         //given
         inSystemExistBooks().withId(2L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
 
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L)
@@ -69,13 +74,13 @@ class BookRentTest {
 
     @Test
     @DisplayName("two clients rent two different books")
-    void testCase3() {
+    void restTestCase3() {
         //given
         inSystemExistBooks().withId(1L).withId(2L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
-        client().withId(2L).wouldLikeToRentABookWithId(2L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
+        client().withId(2L).wouldLikeToRentABookWithId(2L).createRentRequest();
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L)
@@ -86,13 +91,13 @@ class BookRentTest {
 
     @Test
     @DisplayName("two clients rent two different books and books have been rented to right people")
-    void testCase4() {
+    void restTestCase4() {
         //given
         inSystemExistBooks().withId(1L).withId(2L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
-        client().withId(2L).wouldLikeToRentABookWithId(2L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
+        client().withId(2L).wouldLikeToRentABookWithId(2L).createRentRequest();
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L)
@@ -106,13 +111,13 @@ class BookRentTest {
 
     @Test
     @DisplayName("two clients rent the same book")
-    void testCase5() {
+    void restTestCase5() {
         //given
         inSystemExistBooks().withId(1L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
-        client().withId(2L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
+        client().withId(2L).wouldLikeToRentABookWithId(1L).createRentRequest();
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L)
@@ -124,16 +129,115 @@ class BookRentTest {
 
     @Test
     @DisplayName("clients rents a book that he has already rented")
-    void testCase6() {
+    void restTestCase6() {
         //given
         inSystemExistBooks().withId(1L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
-        client().withId(1L).wouldLikeToRentABookWithId(1L).create();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
+        client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
         //when
-        rentBook();
+        rentBooks();
 
         //then
         rentResult().clientWithId(1L).rentedOnlyOneBook();
+    }
+
+    @Test
+    @DisplayName("return a previously rented book")
+    void returnTestCase1() {
+        //given
+        inSystemExistBooks().withId(1L).withId(2L).create();
+        alreadyRentedBooks().withId(1L).isRentedToTheUserWithId(1L).create();
+
+        client().withId(1L).wouldLikeToReturnABookWithId(1L).createReturnRequest();
+
+        //when
+        returnBooks();
+
+        //then
+        returnResult().bookWithId(1L).wasSuccessfullyReturned();
+    }
+
+    private RentedBookAssembler alreadyRentedBooks(){
+        return new RentedBookAssembler();
+    }
+
+    private class RentedBookAssembler{
+        private BookId bookId;
+        private UserId clientId;
+
+        private RentedBookAssembler withId(Long bookId) {
+            this.bookId = new BookId(bookId);
+            return this;
+        }
+
+        private RentedBookAssembler isRentedToTheUserWithId(Long userId){
+            this.clientId = new UserId(userId);
+            return this;
+        }
+
+        RentedBookAssembler create(){
+            final Client client = new Client(clientId);
+            final UserRental userRental = userRentalFactory.create(client);
+            userRental.rentBook(new Book(bookId));
+            mockRentalRepository.save(userRental);
+            return this;
+        }
+    }
+
+    private class ReturnOrders{
+        private List<ReturnOrder> returnOrders = new ArrayList<>();
+
+        void addReturnOrder(ReturnOrder returnOrder) {
+            this.returnOrders.add(returnOrder);
+        }
+
+        void executeReturnBookForAllReturnOrders() {
+            this.returnOrders.forEach(ReturnOrder::executeReturnBook);
+        }
+
+        ReturnResult getReturnResultForBookId(BookId bookId) {
+            return this.returnOrders.stream()
+                    .filter(returnOrder -> returnOrder.getBookId().equals(bookId))
+                    .findFirst()
+                    .get()
+                    .getReturnResult();
+        }
+    }
+
+    private class ExistingBookAssembler {
+
+        private List<Book> books = new LinkedList<>();
+
+        private ExistingBookAssembler withId(Long bookId) {
+            books.add(new Book(new BookId(bookId)));
+            return this;
+        }
+
+        void create() {
+            bookRepository.addBooks(books);
+        }
+
+    }
+
+    private class ReturnOrder {
+        private BookId bookId;
+        private ReturnResult returnResult;
+
+        ReturnOrder(BookId bookId) {
+            this.bookId = bookId;
+        }
+
+        void executeReturnBook(){
+            this.returnResult = rentalSerivce.returnBook(this.bookId);
+        }
+
+        BookId getBookId() {
+            return bookId;
+        }
+
+        ReturnResult getReturnResult() {
+            return returnResult;
+        }
     }
 
     private class RentOrder{
@@ -188,21 +292,6 @@ class BookRentTest {
         }
     }
 
-    private class ExistingBookAssembler {
-
-        private List<Book> books = new LinkedList<>();
-
-        private ExistingBookAssembler withId(Long bookId) {
-            books.add(new Book(new BookId(bookId)));
-            return this;
-        }
-
-        void create() {
-            bookRepository.addBooks(books);
-        }
-
-    }
-
     private class BookRentAssembler {
         private UserId userId;
 
@@ -218,12 +307,22 @@ class BookRentTest {
             return this;
         }
 
-        private void create() {
+        private BookRentAssembler wouldLikeToReturnABookWithId(Long bookId) {
+            this.bookId = new BookId(bookId);
+            return this;
+        }
+
+        private void createRentRequest() {
             final Client client = new Client(userId);
             final UserRental userRental = userRentalFactory.create(client);
 
             mockRentalRepository.save(userRental);
             rentOrders.addRentOrder(new RentOrder(userId,bookId));
+        }
+
+        private void createReturnRequest() {
+            final Client client = new Client(userId);
+            returnOrders.addReturnOrder(new ReturnOrder(bookId));
         }
 
     }
@@ -281,26 +380,42 @@ class BookRentTest {
         }
     }
 
+    private class ReturnResultAssembler {
+        private BookId bookId;
 
-    private RentResultAssembler firstRentResult() {
-       return rentResult();
+        private ReturnResultAssembler bookWithId(Long bookId) {
+            this.bookId = new BookId(bookId);
+            return this;
+        }
+
+        void wasSuccessfullyReturned() {
+           final ReturnResult returnResult = returnOrders.getReturnResultForBookId(bookId);
+           assertThat(returnResult.isValid(), is(true));
+           assertThat(returnResult.getResult(), is(ReturnResult.Result.SUCCEES));
+        }
+
     }
 
-    private RentResultAssembler secondRentResult() {
-        return rentResult();
-    }
 
     private RentResultAssembler rentResult() {
         return new RentResultAssembler();
+    }
+
+    private ReturnResultAssembler returnResult() {
+        return new ReturnResultAssembler();
     }
 
     private BookRentAssembler client() {
         return new BookRentAssembler();
     }
 
-    private void rentBook() {
+    private void rentBooks() {
         rentOrders.executeRentForAllRentOrders();
     }
+    private void returnBooks() {
+        returnOrders.executeReturnBookForAllReturnOrders();
+    }
+
 
     private ExistingBookAssembler inSystemExistBooks() {
         return new ExistingBookAssembler();

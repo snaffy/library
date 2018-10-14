@@ -1,9 +1,10 @@
 package pl.ki.az;
 
 
+import pl.ki.az.model.book.BookId;
 import pl.ki.az.model.client.Client;
 import pl.ki.az.model.client.UserId;
-import pl.ki.az.rent.UserRental;
+import pl.ki.az.domainaggregates.UserRental;
 import pl.ki.az.repository.RentalRepository;
 
 import java.util.ArrayList;
@@ -23,7 +24,17 @@ public class MockRentalRepository implements RentalRepository {
     }
 
     @Override
+    public UserRental loadUsersRentByRentedBook(BookId bookId) {
+        Optional<UserRental> result = allUsersRentalList.stream()
+                .filter(userRental -> userRental.isUserRentedSpecificBook(bookId))
+                .findFirst();
+
+        return result.orElse(null);
+    }
+
+    @Override
     public void save(UserRental userRental) {
         allUsersRentalList.add(userRental);
     }
+
 }

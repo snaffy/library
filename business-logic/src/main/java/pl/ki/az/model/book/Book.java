@@ -21,7 +21,26 @@ public class Book {
         this.rentStatus = RentStatus.RENTED;
     }
 
+    public void changeStatusToAvailable(){
+        this.rentStatus = RentStatus.AVAILABLE;
+    }
+
     public BookId getId() {
         return id;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Book)) return false;
+
+        Book book = (Book) o;
+
+        return id != null ? id.equals(book.id) : book.id == null;
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
     }
 }
