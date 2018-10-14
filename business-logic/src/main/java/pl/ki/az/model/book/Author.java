@@ -1,5 +1,5 @@
 package pl.ki.az.model.book;
 
-public class Author {
+class Author {
     private String name;
 }

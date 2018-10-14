@@ -9,11 +9,11 @@ public class RentResult {
         this.result = result;
     }
 
-    public static RentResult successfullyRentedBook() {
+    static RentResult successfullyRentedBook() {
         return new RentResult(true, Result.SUCCEES);
     }
 
-    public static RentResult bookIsNotAvailable() {
+    static RentResult bookIsNotAvailable() {
         return new RentResult(false, Result.BOOK_NOT_AVAILABLE);
     }
 
