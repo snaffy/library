@@ -1,4 +1,3 @@
 package pl.ki.az.exceptions;
 
-public class BookNotExist extends RuntimeException {
-}
+public class BookNotExist extends RuntimeException { }
