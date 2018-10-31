@@ -1,20 +1,16 @@
-package pl.ki.az;
+package pl.ki.az.reservations;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import pl.ki.az.api.RentalSerivce;
-import pl.ki.az.api.RentalServiceAPI;
-import pl.ki.az.domainaggregates.RentResult;
-import pl.ki.az.domainaggregates.ReturnResult;
-import pl.ki.az.domainaggregates.UserRental;
-import pl.ki.az.domainaggregates.UserRentalFactory;
-import pl.ki.az.exceptions.BookNotExist;
-import pl.ki.az.exceptions.UsersRentNotFound;
-import pl.ki.az.model.book.Book;
-import pl.ki.az.model.book.BookId;
-import pl.ki.az.model.client.Client;
-import pl.ki.az.model.client.UserId;
+import pl.ki.az.reservations.api.ReservationService;
+import pl.ki.az.reservations.api.ReservationServiceAPI;
+import pl.ki.az.reservations.domainaggregates.BookReservation;
+import pl.ki.az.reservations.domainaggregates.RentResult;
+import pl.ki.az.reservations.domainaggregates.ReturnResult;
+import pl.ki.az.reservations.exceptions.BookReservationNotFound;
+import pl.ki.az.reservations.model.book.BookId;
+import pl.ki.az.shared.model.client.ClientId;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -26,23 +22,20 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BookRentTest {
-    private MockBookRepository bookRepository;
-    private UserRentalFactory userRentalFactory;
-    private RentalSerivce rentalSerivce;
-    private MockRentalRepository mockRentalRepository;
+
+    private ReservationService reservationService;
+    private MockReservationRepository mockReservationRepository;
     private RentOrders rentOrders;
     private ReturnOrders returnOrders;
-    private BookNotExist bookNotExist;
+
 
     //TODO dopisać testy kiedy userid nie istnieje w systemie
 
     //startTestSection
     @BeforeEach
-    private void setUp() {
-        this.bookRepository = new MockBookRepository();
-        this.userRentalFactory = new UserRentalFactory();
-        this.mockRentalRepository = new MockRentalRepository();
-        this.rentalSerivce = new RentalServiceAPI(mockRentalRepository, bookRepository, userRentalFactory);
+    void setUp() {
+        this.mockReservationRepository = new MockReservationRepository();
+        this.reservationService = new ReservationServiceAPI(mockReservationRepository);
         this.rentOrders = new RentOrders();
         this.returnOrders = new ReturnOrders();
     }
@@ -68,13 +61,8 @@ class BookRentTest {
         inSystemExistBooks().withId(2L).create();
         client().withId(1L).wouldLikeToRentABookWithId(1L).createRentRequest();
 
-        //when
-        rentBooks();
-
-        //then
-        rentResult().clientWithId(1L)
-                .notSuccessfullyRentedBook()
-                .becauseBookNotExistInSystem();
+        //when //then
+        assertThrows(BookReservationNotFound.class, this::rentBooks);
     }
 
     @Test
@@ -162,24 +150,21 @@ class BookRentTest {
         returnResult().clientWithId(1L).hasNoRentedBooksWithId(1L);
     }
 
-    //TODO ladniej zapisac testCase2 i 3 ??? (chodzi o assercje)
-    //TODO może ładniej byłoby skorzystać z Expected Rule?
     @Test
     @DisplayName("return a book that does not exist")
     void returnTestCase2() {
         //given
         inSystemExistBooks().withId(1L).create();
-        alreadyRentedBooks().withId(2L).isRentedToTheUserWithId(1L).create();
+        alreadyRentedBooks().withId(1L).isRentedToTheUserWithId(1L).create();
 
         client().withId(1L).wouldLikeToReturnABookWithId(2L).createReturnRequest();
 
-        //when
-        returnBooksThatNotExist();
+        //when //then
+        assertThrows(BookReservationNotFound.class, this::returnBooks);
 
-        //then
-        bookNotExistExceptionWasThrown();
     }
 
+    //
     @Test
     @DisplayName("return a book that was not rented by the customer")
     void returnTestCase3() {
@@ -190,7 +175,10 @@ class BookRentTest {
         client().withId(1L).wouldLikeToReturnABookWithId(1L).createReturnRequest();
 
         //when
-        assertThrows(UsersRentNotFound.class, this::returnBooks);
+        returnBooks();
+
+        //then
+        returnResult().bookWithId(1L).wasNotSuccessfullyReturned();
     }
 
     @Test
@@ -215,7 +203,6 @@ class BookRentTest {
                 .clientWithId(1L).hasNoRentedBooksWithId(1L)
                 .clientWithId(1L).hasNoRentedBooksWithId(2L);
     }
-
 
     @Test
     @DisplayName("different customers returns different books")
@@ -271,13 +258,6 @@ class BookRentTest {
         return new RentedBookAssembler();
     }
 
-    private void returnBooksThatNotExist() {
-        bookNotExist = assertThrows(BookNotExist.class, this::returnBooks);
-    }
-
-    private void bookNotExistExceptionWasThrown() {
-    }
-
     private RentResultAssembler rentResult() {
         return new RentResultAssembler();
     }
@@ -306,76 +286,71 @@ class BookRentTest {
 
     private class RentedBookAssembler {
 
-        private List<BookId> rentedBookIds = new ArrayList<>();
-        private UserId clientId;
+        private final List<BookId> rentedBookIds = new ArrayList<>();
+        private ClientId clientId;
 
         private RentedBookAssembler withId(Long bookId) {
             this.rentedBookIds.add(new BookId(bookId));
             return this;
         }
 
-        private RentedBookAssembler isRentedToTheUserWithId(Long userId) {
-            this.clientId = new UserId(userId);
+        private RentedBookAssembler isRentedToTheUserWithId(Long clientId) {
+            this.clientId = new ClientId(clientId);
             return this;
         }
 
-        RentedBookAssembler create() {
-            final Client client = new Client(clientId);
-            final UserRental userRental = userRentalFactory.create(client);
-            rentedBookIds.forEach(bookId -> userRental.rentBook(new Book(bookId)));
-            mockRentalRepository.save(userRental);
-            return this;
+        void create() {
+            rentedBookIds.forEach(bookId -> {
+                BookReservation bookReservation = mockReservationRepository.loadBooksReservation(bookId);
+                bookReservation.rentBookForClient(clientId);
+            });
         }
     }
 
     private class RentResultAssembler {
-        private UserId client;
+        private ClientId clientId;
 
-        private RentResultAssembler clientWithId(Long userId) {
-            this.client = new UserId(userId);
+        private RentResultAssembler clientWithId(Long clientId) {
+            this.clientId = new ClientId(clientId);
             return this;
         }
 
         RentResultAssembler notRentedBookWithId(long bookId) {
-            UserRental userRental = mockRentalRepository.loadUsersRent(client);
-            boolean isUserRentedSpecificBook = userRental.isUserRentedSpecificBook(new BookId(bookId));
-            assertThat(isUserRentedSpecificBook, is(false));
+            BookReservation bookReservation = mockReservationRepository.loadBooksReservation(new BookId(bookId));
+            boolean bookBorrowedByClient = bookReservation.isBookBorrowedByClient(clientId);
+            assertThat(bookBorrowedByClient, is(false));
             return this;
         }
 
         RentResultAssembler successfullyRentedBookWithId(long bookId) {
-            RentResult rentResult = rentOrders.getRentResultForUserId(client);
+            RentResult rentResult = rentOrders.getRentResultForUserId(clientId);
             assertThat(rentResult.isValid(), is(true));
-
-            Book rentedBook = bookRepository.findBookById(new BookId(bookId));
-            assertThat(rentedBook.isAvailable(), is(false));
             return this;
         }
 
         RentResultAssembler notSuccessfullyRentedBook() {
-            RentResult rentResult = rentOrders.getRentResultForUserId(client);
+            RentResult rentResult = rentOrders.getRentResultForUserId(clientId);
             assertThat(rentResult.isValid(), is(false));
             return this;
         }
 
         RentResultAssembler becauseBookNotExistInSystem() {
-            RentResult rentResult = rentOrders.getRentResultForUserId(client);
+            RentResult rentResult = rentOrders.getRentResultForUserId(clientId);
             assertThat(rentResult.getResult(), is(RentResult.Result.BOOK_NOT_EXIST));
             return this;
         }
 
-        RentResultAssembler becauseBookIsNotAvailable() {
-            RentResult rentResult = rentOrders.getRentResultForUserId(client);
+        void becauseBookIsNotAvailable() {
+            RentResult rentResult = rentOrders.getRentResultForUserId(clientId);
             assertThat(rentResult.getResult(), is(RentResult.Result.BOOK_NOT_AVAILABLE));
-            return this;
         }
 
         void rentedOnlyOneBook() {
-            ArrayList<RentResult> rentResults = rentOrders.getAllRentResultForUserIdInOrderFromOldestToNewest(client);
+            ArrayList<RentResult> rentResults = rentOrders.getAllRentResultForUserIdInOrderFromOldestToNewest(clientId);
             RentResult firstRentRequest = rentResults.get(0);
             RentResult secondRentRequest = rentResults.get(1);
             assertThat(firstRentRequest.isValid(), is(true));
-            assertThat(firstRentRequest.getResult(), is(RentResult.Result.SUCCEES));
+            assertThat(firstRentRequest.getResult(), is(RentResult.Result.SUCCESS));
             assertThat(secondRentRequest.isValid(), is(false));
             assertThat(secondRentRequest.getResult(), is(RentResult.Result.BOOK_NOT_AVAILABLE));
         }
@@ -383,11 +358,11 @@ class BookRentTest {
     }
 
     private class BookRentAssembler {
-        private UserId userId;
+        private ClientId clientId;
         private BookId bookId;
 
-        private BookRentAssembler withId(Long userId) {
-            this.userId = new UserId(userId);
+        private BookRentAssembler withId(Long clientId) {
+            this.clientId = new ClientId(clientId);
             return this;
         }
 
@@ -402,11 +377,10 @@ class BookRentTest {
         }
 
         private void createRentRequest() {
-            final Client client = new Client(userId);
-            final UserRental userRental = userRentalFactory.create(client);
+//            final BookReservation bookReservation = new BookReservation(bookId);
+//            mockReservationRepository.save(bookReservation);
 
-            mockRentalRepository.save(userRental);
-            rentOrders.addRentOrder(new RentOrder(userId, bookId));
+            rentOrders.addRentOrder(new RentOrder(clientId, bookId));
         }
 
         private BookRentAssembler createReturnRequest() {
@@ -416,7 +390,7 @@ class BookRentTest {
     }
 
     private class ReturnResultAssembler {
-        private UserId userId;
+        private ClientId clientId;
         private BookId bookId;
 
         private ReturnResultAssembler bookWithId(Long bookId) {
@@ -431,15 +405,21 @@ class BookRentTest {
             return this;
         }
 
+        void wasNotSuccessfullyReturned() {
+            final ReturnResult returnResult = returnOrders.getReturnResultForBookId(bookId);
+            assertThat(returnResult.isValid(), is(false));
+            assertThat(returnResult.getResult(), is(ReturnResult.Result.FAILURE));
+        }
+
         ReturnResultAssembler clientWithId(long clientId) {
-            this.userId = new UserId(clientId);
+            this.clientId = new ClientId(clientId);
             return this;
         }
 
         ReturnResultAssembler hasNoRentedBooksWithId(long bookId) {
-            boolean isUserRentedSearchedBook = mockRentalRepository
-                    .loadUsersRent(userId)
-                    .isUserRentedSpecificBook(new BookId(bookId));
+            boolean isUserRentedSearchedBook = mockReservationRepository
+                    .loadBooksReservation(new BookId(bookId))
+                    .isBookBorrowedByClient(this.clientId);
 
             assertThat(isUserRentedSearchedBook, is(false));
             return this;
@@ -447,15 +427,15 @@ class BookRentTest {
     }
 
     private class ExistingBookAssembler {
-        private List<Book> books = new LinkedList<>();
+        private final List<BookReservation> existingBookReservations = new LinkedList<>();
 
         private ExistingBookAssembler withId(Long bookId) {
-            books.add(new Book(new BookId(bookId)));
+            existingBookReservations.add(new BookReservation(new BookId(bookId)));
             return this;
         }
 
         void create() {
-            bookRepository.addBooks(books);
+            mockReservationRepository.saveAllReservations(existingBookReservations);
         }
     }
 
@@ -464,7 +444,7 @@ class BookRentTest {
     //<editor-fold desc="SupportingTestClasses">
     //startSupportingTestClasses
     private class ReturnOrders {
-        private List<ReturnOrder> returnOrders = new ArrayList<>();
+        private final List<ReturnOrder> returnOrders = new ArrayList<>();
 
         void addReturnOrder(ReturnOrder returnOrder) {
             this.returnOrders.add(returnOrder);
@@ -485,7 +465,7 @@ class BookRentTest {
     }
 
     private class ReturnOrder {
-        private BookId bookId;
+        private final BookId bookId;
         private ReturnResult returnResult;
 
         ReturnOrder(BookId bookId) {
@@ -493,7 +473,7 @@ class BookRentTest {
         }
 
         void executeReturnBook() {
-            this.returnResult = rentalSerivce.returnBook(this.bookId);
+            this.returnResult = reservationService.returnBook(this.bookId);
         }
 
         BookId getBookId() {
@@ -506,21 +486,21 @@ class BookRentTest {
     }
 
     private class RentOrder {
-        private UserId userId;
-        private BookId bookId;
+        private final ClientId clientId;
+        private final BookId bookId;
         private RentResult rentResult;
 
-        RentOrder(UserId userId, BookId bookId) {
-            this.userId = userId;
+        RentOrder(ClientId clientId, BookId bookId) {
+            this.clientId = clientId;
             this.bookId = bookId;
         }
 
         void executeRentBook() {
-            this.rentResult = rentalSerivce.rentBook(this.userId, this.bookId);
+            this.rentResult = reservationService.rentBook(this.clientId, this.bookId);
         }
 
-        UserId getUserId() {
-            return userId;
+        ClientId getUserId() {
+            return clientId;
         }
 
         RentResult getRentResult() {
@@ -531,7 +511,7 @@ class BookRentTest {
 
     private class RentOrders {
 
-        private List<RentOrder> rentOrders = new ArrayList<>();
+        private final List<RentOrder> rentOrders = new ArrayList<>();
 
         void addRentOrder(RentOrder rentOrder) {
             this.rentOrders.add(rentOrder);
@@ -541,17 +521,17 @@ class BookRentTest {
             rentOrders.forEach(RentOrder::executeRentBook);
         }
 
-        RentResult getRentResultForUserId(UserId userId) {
+        RentResult getRentResultForUserId(ClientId clientId) {
             return rentOrders.stream()
-                    .filter(rentOrder -> rentOrder.getUserId().equals(userId))
+                    .filter(rentOrder -> rentOrder.getUserId().equals(clientId))
                     .findFirst()
                     .get()
                     .getRentResult();
         }
 
-        ArrayList<RentResult> getAllRentResultForUserIdInOrderFromOldestToNewest(UserId userId) {
+        ArrayList<RentResult> getAllRentResultForUserIdInOrderFromOldestToNewest(ClientId clientId) {
             return rentOrders.stream()
-                    .filter(rentOrder -> rentOrder.getUserId().equals(userId))
+                    .filter(rentOrder -> rentOrder.getUserId().equals(clientId))
                     .collect(Collectors.toList())
                     .stream()
                     .map(RentOrder::getRentResult)
