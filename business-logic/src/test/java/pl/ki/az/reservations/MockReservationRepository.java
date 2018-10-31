@@ -1,9 +1,9 @@
 package pl.ki.az.reservations;
 
 
-import pl.ki.az.shared.reservations.domainaggregates.BookReservation;
-import pl.ki.az.shared.reservations.model.book.BookId;
-import pl.ki.az.shared.reservations.repository.ReservationRepository;
+import pl.ki.az.reservations.domainaggregates.BookReservation;
+import pl.ki.az.reservations.repository.ReservationRepository;
+import pl.ki.az.shared.model.book.BookId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +26,7 @@ public class MockReservationRepository implements ReservationRepository {
         allBooksBookReservation.add(bookReservation);
     }
 
-    public void saveAllReservations(List<BookReservation> bookReservations) {
+    void saveAllReservations(List<BookReservation> bookReservations) {
         allBooksBookReservation.addAll(bookReservations);
     }
 

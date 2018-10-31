@@ -9,7 +9,7 @@ import pl.ki.az.reservations.domainaggregates.BookReservation;
 import pl.ki.az.reservations.domainaggregates.RentResult;
 import pl.ki.az.reservations.domainaggregates.ReturnResult;
 import pl.ki.az.reservations.exceptions.BookReservationNotFound;
-import pl.ki.az.reservations.model.book.BookId;
+import pl.ki.az.shared.model.book.BookId;
 import pl.ki.az.shared.model.client.ClientId;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ class BookRentTest {
     @BeforeEach
     void setUp() {
         this.mockReservationRepository = new MockReservationRepository();
-        this.reservationService = new ReservationServiceAPI(mockReservationRepository);
+        this.reservationService = new ReservationServiceAPI(mockReservationRepository, new MockBookingPendingNotification());
         this.rentOrders = new RentOrders();
         this.returnOrders = new ReturnOrders();
     }
