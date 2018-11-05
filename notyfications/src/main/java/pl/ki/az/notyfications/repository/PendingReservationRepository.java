@@ -4,6 +4,6 @@ import pl.ki.az.notyfications.PendingReservation;
 import pl.ki.az.shared.model.book.BookId;
 
 public interface PendingReservationRepository {
-    PendingReservation loadPendingRevervations(BookId bookId);
+    PendingReservation loadPendingReservations(BookId bookId);
     void save(PendingReservation pendingReservation);
 }

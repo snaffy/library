@@ -4,14 +4,15 @@ package pl.ki.az.notyfications;
 import pl.ki.az.shared.model.book.BookId;
 import pl.ki.az.shared.model.client.ClientId;
 
-import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class PendingReservation {
     private BookId bookId;
-    private SortedSet<PendingClient> pendingClients;
+    private TreeSet<PendingClient> pendingClients;
 
     PendingReservation(BookId bookId) {
         this.bookId = bookId;
+        this.pendingClients = new TreeSet<>();
     }
 
     void addClientToPendingQueue(ClientId clientId) {
@@ -27,4 +28,11 @@ public class PendingReservation {
         }
     }
 
+    int countPendingClients() {
+        return pendingClients.size();
+    }
+
+    BookId getBookId() {
+        return bookId;
+    }
 }

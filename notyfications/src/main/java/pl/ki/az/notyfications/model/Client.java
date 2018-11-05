@@ -7,4 +7,12 @@ public class Client {
     private String email;
     private String name;
     private String surname;
+
+    public Client(ClientId clientId) {
+        this.clientId = clientId;
+    }
+
+    public ClientId getClientId() {
+        return clientId;
+    }
 }

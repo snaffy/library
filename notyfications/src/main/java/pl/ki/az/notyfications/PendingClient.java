@@ -4,7 +4,7 @@ import pl.ki.az.shared.model.client.ClientId;
 
 import java.time.LocalDateTime;
 
-public class PendingClient implements Comparable<LocalDateTime> {
+public class PendingClient implements Comparable<PendingClient> {
     private ClientId clientId;
     private LocalDateTime startPendingForBookDate;
 
@@ -18,7 +18,11 @@ public class PendingClient implements Comparable<LocalDateTime> {
     }
 
     @Override
-    public int compareTo(LocalDateTime localDateTime) {
-        return startPendingForBookDate.compareTo(localDateTime);
+    public int compareTo(PendingClient pendingClient) {
+        return this.startPendingForBookDate.compareTo(pendingClient.getStartPendingForBookDate());
+    }
+
+    private LocalDateTime getStartPendingForBookDate() {
+        return startPendingForBookDate;
     }
 }

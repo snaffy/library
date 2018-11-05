@@ -1,4 +1,4 @@
 package pl.ki.az.notyfications;
 
-public class PendingReservationNotFound extends RuntimeException {
+class PendingReservationNotFound extends RuntimeException {
 }

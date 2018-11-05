@@ -3,12 +3,17 @@ package pl.ki.az.reservations;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import pl.ki.az.reservations.api.ReservationService;
 import pl.ki.az.reservations.api.ReservationServiceAPI;
 import pl.ki.az.reservations.domainaggregates.BookReservation;
 import pl.ki.az.reservations.domainaggregates.RentResult;
 import pl.ki.az.reservations.domainaggregates.ReturnResult;
 import pl.ki.az.reservations.exceptions.BookReservationNotFound;
+import pl.ki.az.shared.BookingPendingNotification;
 import pl.ki.az.shared.model.book.BookId;
 import pl.ki.az.shared.model.client.ClientId;
 
@@ -20,7 +25,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
 
+@ExtendWith(MockitoExtension.class)
 class BookRentTest {
 
     private ReservationService reservationService;
@@ -28,14 +35,14 @@ class BookRentTest {
     private RentOrders rentOrders;
     private ReturnOrders returnOrders;
 
-
-    //TODO dopisać testy kiedy userid nie istnieje w systemie
+    @Mock
+    BookingPendingNotification bookingPendingNotification;
 
     //startTestSection
     @BeforeEach
     void setUp() {
         this.mockReservationRepository = new MockReservationRepository();
-        this.reservationService = new ReservationServiceAPI(mockReservationRepository, new MockBookingPendingNotification());
+        this.reservationService = new ReservationServiceAPI(mockReservationRepository, bookingPendingNotification);
         this.rentOrders = new RentOrders();
         this.returnOrders = new ReturnOrders();
     }
@@ -252,6 +259,43 @@ class BookRentTest {
                 .clientWithId(1L).hasNoRentedBooksWithId(1L);
     }
 
+    @Test
+    @DisplayName("rent already rented book")
+    void returnTestCase7() {
+        //given
+        inSystemExistBooks().withId(1L).withId(2L).withId(3L).create();
+        alreadyRentedBooks().withId(1L).isRentedToTheUserWithId(1L).create();
+
+        client().withId(2L)
+                .wouldLikeToRentABookWithId(1L).createRentRequest();
+        //when
+        rentBooks();
+
+        //then
+        rentResult().clientWithId(2L)
+                .notSuccessfullyRentedBook()
+                .successfullyAddedToQueueForBookWithId(1L);
+    }
+
+    @Test
+    @DisplayName("return already rented book")
+    void returnTestCase8() {
+        //given
+        inSystemExistBooks().withId(1L).withId(2L).withId(3L).create();
+        alreadyRentedBooks().withId(1L).isRentedToTheUserWithId(1L).create();
+
+        client().withId(1L)
+                .wouldLikeToReturnABookWithId(1L).createReturnRequest();
+
+        //when
+        returnBooks();
+
+        //then
+        returnResult().bookWithId(1L)
+                .wasSuccessfullyReturned()
+                .bookAvailabilityWasNotified();
+    }
+
     //endTestSection
 
     private RentedBookAssembler alreadyRentedBooks() {
@@ -355,9 +399,14 @@ class BookRentTest {
             assertThat(secondRentRequest.getResult(), is(RentResult.Result.BOOK_NOT_AVAILABLE));
         }
 
-    }
+        void successfullyAddedToQueueForBookWithId(long bookId) {
+            verify(bookingPendingNotification, Mockito.times(1))
+                    .subscribeToBookAvailability(clientId,new BookId(bookId));
+        }
 
+    }
     private class BookRentAssembler {
+
         private ClientId clientId;
         private BookId bookId;
 
@@ -388,8 +437,8 @@ class BookRentTest {
             return this;
         }
     }
-
     private class ReturnResultAssembler {
+
         private ClientId clientId;
         private BookId bookId;
 
@@ -423,6 +472,11 @@ class BookRentTest {
 
             assertThat(isUserRentedSearchedBook, is(false));
             return this;
+        }
+
+        void bookAvailabilityWasNotified() {
+            verify(bookingPendingNotification, Mockito.times(1))
+                    .notifyAboutBookAvailability(bookId);
         }
     }
 

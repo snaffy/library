@@ -20,7 +20,7 @@ public class PendingReservationService implements BookingPendingNotification {
 
     @Override
     public void subscribeToBookAvailability(ClientId clientId, BookId bookId) {
-        PendingReservation pendingReservation = pendingReservationRepository.loadPendingRevervations(bookId);
+        PendingReservation pendingReservation = pendingReservationRepository.loadPendingReservations(bookId);
 
         if (pendingReservation == null) {
             pendingReservation = new PendingReservation(bookId);
@@ -33,7 +33,7 @@ public class PendingReservationService implements BookingPendingNotification {
 
     @Override
     public void notifyAboutBookAvailability(BookId bookId) {
-        PendingReservation pendingReservation = pendingReservationRepository.loadPendingRevervations(bookId);
+        PendingReservation pendingReservation = pendingReservationRepository.loadPendingReservations(bookId);
 
         if (pendingReservation == null) {
             throw new PendingReservationNotFound();
